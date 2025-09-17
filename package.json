@@ -1,0 +1,14 @@
+﻿{
+  "name": "gomoku-app",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Browser-based Gomoku game with tests",
+  "scripts": {
+    "test": "npm run test:unit",
+    "test:unit": "node --test",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}
