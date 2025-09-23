@@ -99,6 +99,18 @@ function applyMove(row, col) {
   if (winningLine) {
     highlightWin(winningLine);
     statusElement.textContent = `${playerLabel(currentPlayer)}の勝ちです`;
+    // VRM: 勝敗に応じて表情を切替（AIキャラ想定）
+    try {
+      if (vsAI && window.vrmFace) {
+        if (currentPlayer === aiPlayer && typeof window.vrmFace.smile === "function") {
+          // AIが勝利
+          window.vrmFace.smile(5000, 0.9);
+        } else if (currentPlayer !== aiPlayer && typeof window.vrmFace.sad === "function") {
+          // AIが敗北
+          window.vrmFace.sad(3000, 0.85);
+        }
+      }
+    } catch (_) {}
     gameOver = true;
     return true;
   }
@@ -111,6 +123,12 @@ function applyMove(row, col) {
 
   currentPlayer = currentPlayer === "black" ? "white" : "black";
   statusElement.textContent = `${playerLabel(currentPlayer)}の番です`;
+  // VRM: 手番切り替えのタイミングで口を閉じる（形が残らないように）
+  try {
+    if (window.vrmTalk && typeof window.vrmTalk.close === "function") {
+      window.vrmTalk.close();
+    }
+  } catch (_) {}
   return true;
 }
 
@@ -228,6 +246,12 @@ function chooseAIMove() {
 function maybeAIMove() {
   if (!vsAI || gameOver || currentPlayer !== aiPlayer) return;
   aiThinking = true;
+  // VRM: AI の手番中に口パクを少しだけ再生
+  try {
+    if (window.vrmTalk && typeof window.vrmTalk.start === "function") {
+      window.vrmTalk.start(260);
+    }
+  } catch (_) {}
   setTimeout(() => {
     const choice = chooseAIMove();
     if (choice) {

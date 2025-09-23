@@ -4,6 +4,7 @@
   "type": "module",
   "description": "Browser-based Gomoku game with tests",
   "scripts": {
+    "start": "node server.js",
     "test": "npm run test:unit",
     "test:unit": "node --test",
     "test:e2e": "playwright test"

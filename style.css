@@ -127,7 +127,8 @@ h1 {
 .vrm-viewer {
   width: clamp(220px, 28vw, 360px);
   height: clamp(320px, 40vw, 520px);
-  background: linear-gradient(180deg, #222 0%, #111 100%);
+  /* 華やかな背景（お好みで色を変えてください） */
+  background: radial-gradient(120% 120% at 20% 15%, #ffd58a 0%, #9ad3ff 70%, #6fa8ff 100%);
   border: 5px solid #a7723b;
   border-radius: 10px;
   box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.45);
