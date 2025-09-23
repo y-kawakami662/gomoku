@@ -5,6 +5,9 @@
   isBoardFull,
 } from "./gomoku.js";
 
+// Additional import for AI heuristics
+import { gatherLine } from "./gomoku.js";
+
 let boardElement;
 let statusElement;
 let resetButton;
@@ -152,18 +155,81 @@ function getAvailableMoves() {
   return moves;
 }
 
-function pickRandomMove(moves) {
+function simulateWinAt(row, col, player) {
+  boardState[row][col] = player;
+  const win = checkWin(boardState, row, col);
+  boardState[row][col] = null;
+  return Boolean(win);
+}
+
+function evaluateMove(row, col) {
+  const mid = (BOARD_SIZE - 1) / 2;
+  let score = 0;
+
+  // Offensive: place as AI and measure lines
+  boardState[row][col] = aiPlayer;
+  const dirs = [
+    [0, 1],
+    [1, 0],
+    [1, 1],
+    [1, -1],
+  ];
+  for (const [dr, dc] of dirs) {
+    const line = gatherLine(boardState, row, col, dr, dc, aiPlayer);
+    const len = line.length;
+    score += len * len * 10;
+  }
+  boardState[row][col] = null;
+
+  // Defensive: if opponent were here, how strong would it be?
+  const opponent = "black";
+  boardState[row][col] = opponent;
+  for (const [dr, dc] of dirs) {
+    const line = gatherLine(boardState, row, col, dr, dc, opponent);
+    const len = line.length;
+    score += len * len * 7;
+  }
+  boardState[row][col] = null;
+
+  // Prefer center
+  const dist = Math.abs(row - mid) + Math.abs(col - mid);
+  score += Math.max(0, 10 - dist);
+
+  return score;
+}
+
+function chooseAIMove() {
+  const moves = getAvailableMoves();
   if (moves.length === 0) return null;
-  const idx = Math.floor(Math.random() * moves.length);
-  return moves[idx];
+
+  // 1) Try to win now
+  for (const [r, c] of moves) {
+    if (simulateWinAt(r, c, aiPlayer)) return [r, c];
+  }
+
+  // 2) Block opponent's immediate win
+  for (const [r, c] of moves) {
+    if (simulateWinAt(r, c, "black")) return [r, c];
+  }
+
+  // 3) Heuristic scoring
+  let best = null;
+  let bestScore = -Infinity;
+  for (const [r, c] of moves) {
+    const s = evaluateMove(r, c);
+    if (s > bestScore) {
+      bestScore = s;
+      best = [r, c];
+    }
+  }
+  return best;
 }
 
 function maybeAIMove() {
   if (!vsAI || gameOver || currentPlayer !== aiPlayer) return;
   aiThinking = true;
   setTimeout(() => {
-    const moves = getAvailableMoves();
-    const choice = pickRandomMove(moves);
+    const choice = chooseAIMove();
     if (choice) {
       const [r, c] = choice;
       applyMove(r, c);
