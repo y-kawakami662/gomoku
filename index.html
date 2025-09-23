@@ -4,6 +4,15 @@
   <meta charset="UTF-8">
   <title>五目並べ</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://esm.sh/three@0.154.0",
+        "three/examples/jsm/loaders/GLTFLoader.js": "https://esm.sh/three@0.154.0/examples/jsm/loaders/GLTFLoader.js",
+        "@pixiv/three-vrm": "https://esm.sh/@pixiv/three-vrm@2.0.3"
+      }
+    }
+  </script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -13,9 +22,13 @@
     <div class="controls">
       <label><input id="aiToggle" type="checkbox"> AI対戦</label>
     </div>
-    <div id="board" class="board" role="grid" aria-label="15×15 の五目並べ盤面"></div>
+    <div class="play-area" aria-label="対局エリア">
+      <div id="board" class="board" role="grid" aria-label="15×15 の五目並べ盤面"></div>
+      <aside id="vrmViewer" class="vrm-viewer" aria-label="対戦キャラクター表示"></aside>
+    </div>
     <button id="reset" type="button">リセット</button>
   </main>
   <script type="module" src="script.js"></script>
+  <script type="module" src="vrm.js"></script>
 </body>
 </html>

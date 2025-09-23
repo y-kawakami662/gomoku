@@ -46,6 +46,14 @@ h1 {
   margin-bottom: 0.5rem;
 }
 
+.play-area {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
 .board {
   display: grid;
   grid-template-columns: repeat(var(--board-size), var(--cell-size));
@@ -56,6 +64,17 @@ h1 {
   box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.2);
   margin: 0 auto 1rem auto;
   touch-action: manipulation;
+}
+
+.vrm-viewer {
+  width: clamp(220px, 28vw, 360px);
+  height: clamp(320px, 40vw, 520px);
+  background: linear-gradient(180deg, #222 0%, #111 100%);
+  border: 5px solid #a7723b;
+  border-radius: 10px;
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.45);
+  position: relative;
+  overflow: hidden;
 }
 
 .cell {
@@ -139,6 +158,11 @@ h1 {
     width: 100%;
     margin: 0 1rem;
     padding: 1rem;
+  }
+
+  .play-area {
+    flex-direction: column;
+    align-items: center;
   }
 
   #status {
