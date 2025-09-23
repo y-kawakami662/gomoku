@@ -42,6 +42,10 @@ h1 {
   font-size: 1.1rem;
 }
 
+.controls {
+  margin-bottom: 0.5rem;
+}
+
 .board {
   display: grid;
   grid-template-columns: repeat(var(--board-size), var(--cell-size));
