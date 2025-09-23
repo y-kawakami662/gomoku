@@ -3,10 +3,10 @@
   createEmptyBoard,
   checkWin,
   isBoardFull,
-} from "./gomoku.js";
+} from "../core/gomoku.js";
 
-// Additional import for AI heuristics
-import { gatherLine } from "./gomoku.js";
+import { chooseAIMove } from "../ai/ai.js";
+import { playerLabel, setCellLabel, selectCellElement, createCell, highlightWin } from "./dom.js";
 
 let boardElement;
 let statusElement;
@@ -55,25 +55,14 @@ function resetGame() {
 
   for (let row = 0; row < BOARD_SIZE; row += 1) {
     for (let col = 0; col < BOARD_SIZE; col += 1) {
-      boardElement.appendChild(createCell(row, col));
+      boardElement.appendChild(createCell(row, col, handleCellClick));
     }
   }
 
   // 先手は黒なので、AI が白固定の限りここでの自動手は不要
 }
 
-function createCell(row, col) {
-  const cell = document.createElement("button");
-  cell.className = "cell";
-  cell.type = "button";
-  cell.dataset.row = String(row);
-  cell.dataset.col = String(col);
-  cell.dataset.filled = "false";
-  cell.setAttribute("role", "gridcell");
-  setCellLabel(cell, null);
-  cell.addEventListener("click", () => handleCellClick(row, col));
-  return cell;
-}
+// createCell moved to dom.js
 
 function handleCellClick(row, col) {
   if (aiThinking) return;
@@ -87,7 +76,7 @@ function applyMove(row, col) {
     return false;
   }
 
-  const cell = selectCellElement(row, col);
+  const cell = selectCellElement(boardElement, row, col);
   if (!cell) return false;
 
   boardState[row][col] = currentPlayer;
@@ -97,7 +86,7 @@ function applyMove(row, col) {
 
   const winningLine = checkWin(boardState, row, col);
   if (winningLine) {
-    highlightWin(winningLine);
+    highlightWin(boardElement, winningLine);
     statusElement.textContent = `${playerLabel(currentPlayer)}の勝ちです`;
     // VRM: 勝敗に応じて表情を切替（AIキャラ想定）
     try {
@@ -132,116 +121,7 @@ function applyMove(row, col) {
   return true;
 }
 
-function highlightWin(cells) {
-  cells.forEach(([cellRow, cellCol]) => {
-    const selector = `.cell[data-row="${cellRow}"][data-col="${cellCol}"]`;
-    const target = boardElement.querySelector(selector);
-    if (target) {
-      target.classList.add("win");
-    }
-  });
-}
-
-function playerLabel(player) {
-  return player === "black" ? "黒" : "白";
-}
-
-function setCellLabel(cell, player) {
-  const row = Number(cell.dataset.row) + 1;
-  const col = Number(cell.dataset.col) + 1;
-  if (!player) {
-    cell.setAttribute("aria-label", `${row} 行 ${col} 列：空き`);
-    return;
-  }
-  const stone = player === "black" ? "黒石" : "白石";
-  cell.setAttribute("aria-label", `${row} 行 ${col} 列：${stone}`);
-}
-
-function selectCellElement(row, col) {
-  return boardElement.querySelector(
-    `.cell[data-row="${row}"][data-col="${col}"]`
-  );
-}
-
-function getAvailableMoves() {
-  const moves = [];
-  for (let r = 0; r < BOARD_SIZE; r += 1) {
-    for (let c = 0; c < BOARD_SIZE; c += 1) {
-      if (!boardState[r][c]) moves.push([r, c]);
-    }
-  }
-  return moves;
-}
-
-function simulateWinAt(row, col, player) {
-  boardState[row][col] = player;
-  const win = checkWin(boardState, row, col);
-  boardState[row][col] = null;
-  return Boolean(win);
-}
-
-function evaluateMove(row, col) {
-  const mid = (BOARD_SIZE - 1) / 2;
-  let score = 0;
-
-  // Offensive: place as AI and measure lines
-  boardState[row][col] = aiPlayer;
-  const dirs = [
-    [0, 1],
-    [1, 0],
-    [1, 1],
-    [1, -1],
-  ];
-  for (const [dr, dc] of dirs) {
-    const line = gatherLine(boardState, row, col, dr, dc, aiPlayer);
-    const len = line.length;
-    score += len * len * 10;
-  }
-  boardState[row][col] = null;
-
-  // Defensive: if opponent were here, how strong would it be?
-  const opponent = "black";
-  boardState[row][col] = opponent;
-  for (const [dr, dc] of dirs) {
-    const line = gatherLine(boardState, row, col, dr, dc, opponent);
-    const len = line.length;
-    score += len * len * 7;
-  }
-  boardState[row][col] = null;
-
-  // Prefer center
-  const dist = Math.abs(row - mid) + Math.abs(col - mid);
-  score += Math.max(0, 10 - dist);
-
-  return score;
-}
-
-function chooseAIMove() {
-  const moves = getAvailableMoves();
-  if (moves.length === 0) return null;
-
-  // 1) Try to win now
-  for (const [r, c] of moves) {
-    if (simulateWinAt(r, c, aiPlayer)) return [r, c];
-  }
-
-  // 2) Block opponent's immediate win
-  for (const [r, c] of moves) {
-    if (simulateWinAt(r, c, "black")) return [r, c];
-  }
-
-  // 3) Heuristic scoring
-  let best = null;
-  let bestScore = -Infinity;
-  for (const [r, c] of moves) {
-    const s = evaluateMove(r, c);
-    if (s > bestScore) {
-      bestScore = s;
-      best = [r, c];
-    }
-  }
-  return best;
-}
+// highlightWin, playerLabel, setCellLabel, selectCellElement moved to ./dom.js
 
 function maybeAIMove() {
   if (!vsAI || gameOver || currentPlayer !== aiPlayer) return;
@@ -253,12 +133,20 @@ function maybeAIMove() {
     }
   } catch (_) {}
   setTimeout(() => {
-    const choice = chooseAIMove();
-    if (choice) {
+    const start = Date.now();
+    const choice = chooseAIMove(boardState, aiPlayer);
+    const elapsed = Date.now() - start;
+    const wait = Math.max(0, 200 - elapsed);
+    (async () => {
+      if (wait > 0) {
+      await new Promise(resolve => setTimeout(resolve, wait));
+      }
+      if (choice) {
       const [r, c] = choice;
       applyMove(r, c);
-    }
-    aiThinking = false;
+      }
+      aiThinking = false;
+    })();
   }, 200);
 }
 

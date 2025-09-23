@@ -1,4 +1,4 @@
-# Assets/README
+# assets/README
 
 This folder contains the VRM avatar used by the in‑page viewer.
 
@@ -10,7 +10,6 @@ This folder contains the VRM avatar used by the in‑page viewer.
 
 ## Replacing the avatar
 1. Prepare another `.vrm` file that you are allowed to use.
-2. Put it under `Assets/` (e.g., `Assets/MyAvatar.vrm`).
-3. Update the path in `vrm.js` (search for `Assets/AvatarSample_A.vrm`).
+2. Put it under `assets/` (e.g., `assets/MyAvatar.vrm`).
+3. Update the path in `src/vrm/vrm.js` (search for `assets/AvatarSample_A.vrm`).
 4. Verify attribution and license requirements for the new asset and update this README and `CREDITS.md`.
-

@@ -3,10 +3,13 @@ import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// サーバ待受ポート（Playwright から渡される PORT を優先）
 const port = Number(process.env.PORT ?? 4173);
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
+// 配信ルート（リポジトリのルート）
 const rootDir = resolve(__dirname, "..");
 
+// 拡張子ごとの Content-Type マップ
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
@@ -21,6 +24,7 @@ const mimeTypes = {
 
 const lowerRoot = rootDir.toLowerCase();
 
+// ごく簡易な静的ファイルサーバ
 const server = createServer(async (req, res) => {
   try {
     const urlPath = decodeURIComponent((req.url ?? "/").split("?")[0]);
@@ -30,6 +34,7 @@ const server = createServer(async (req, res) => {
     }
     const filePath = resolve(rootDir, relativePath);
 
+    // ルート外参照の遮断（ディレクトリトラバーサル対策）
     if (!filePath.toLowerCase().startsWith(lowerRoot)) {
       res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
       res.end("Forbidden");
@@ -46,15 +51,18 @@ const server = createServer(async (req, res) => {
     });
     res.end(data);
   } catch (error) {
+    // 見つからなかった場合
     res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
     res.end("Not found");
   }
 });
 
 server.listen(port, () => {
-  console.log(`Static server listening on http://127.0.0.1:${port}`);
+// 起動ログ
+console.log(`Static server listening on http://127.0.0.1:${port}`);
 });
 
+// 終了シグナルでサーバをクリーンに停止
 const shutdown = () => {
   server.close(() => process.exit(0));
 };

@@ -42,7 +42,8 @@
 - CSS: style.css で盤面・石・レスポンシブ調整を定義。
 - JavaScript:
   - gomoku.js: ゲームロジック (盤面生成、勝利判定、石の配置など)。
-  - script.js: DOM 制御と UI イベントを担うフロントエンドコード。
+  - ai.js: AI の思考ロジック（手選択の評価・決定）。
+  - script.js: DOM 制御と UI イベント（AI・VRM 連携を呼び出し側に限定）。
 - 静的サーバ: Playwright E2E 用に scripts/dev-server.mjs で Node ベースのサーバを起動。
 - パッケージ管理: npm (package.json)。ESM を前提とした構成。
 
@@ -91,3 +92,15 @@ pm run test:e2e が自動的に静的サーバを起動。
 - 勝敗履歴やスコアボードの実装。
 - 盤面のタップ操作向け UI 改善、アクセシビリティテスト追加。
 - CI/CD パイプライン上での Playwright 実行とスクリーンショット保存。
+
+## 付録: リファクタ後の構成（SRP）
+- CSS: `styles/style.css`
+- JavaScript:
+  - `src/core/gomoku.js` … 盤面・勝敗ロジック（純粋関数）
+  - `src/ai/ai.js` … AI 思考ロジック（手選択の評価・決定）
+  - `src/ui/script.js` … DOM 制御と UI イベント（状態管理・表示更新）
+  - `src/vrm/vrm.js` … VRM 表示・表情制御
+- HTML からの参照を以下に更新済み:
+  - `<link rel="stylesheet" href="styles/style.css">`
+  - `<script type="module" src="src/ui/script.js"></script>`
+  - `<script type="module" src="src/vrm/vrm.js"></script>`

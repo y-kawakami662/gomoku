@@ -7,7 +7,7 @@ import {
   placeStone,
   checkWin,
   isBoardFull,
-} from "../gomoku.js";
+} from "../src/core/gomoku.js";
 
 describe("createEmptyBoard", () => {
   test("produces a square board filled with null", () => {

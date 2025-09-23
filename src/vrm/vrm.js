@@ -2,7 +2,7 @@
  * VRM ビューア（右サイド表示）
  * ------------------------------------------------------------
  * 目的:
- *   - ページ右側のパネルに VRM アバター（Assets/AvatarSample_A.vrm）を表示します。
+ *   - ページ右側のパネルに VRM アバター（assets/AvatarSample_A.vrm）を表示します。
  *   - ほんのり「待機モーション（呼吸・腕スイング・瞬き）」を付けています。
  *
  * 前提:
@@ -34,7 +34,7 @@ if (!container) {
   console.warn("VRM viewer container not found; skipping VRM setup.");
 } else {
   console.info("[VRM] init viewer", { w: container.clientWidth, h: container.clientHeight });
-  setupVRMViewer(container, "Assets/AvatarSample_A.vrm");
+  setupVRMViewer(container, "assets/AvatarSample_A.vrm");
 }
 
 function setupVRMViewer(root, vrmPath) {
