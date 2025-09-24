@@ -17,6 +17,7 @@
 </head>
 <body>
   <main class="app">
+    <button id="optionsBtn" type="button" class="options-gear" aria-label="オプション" aria-haspopup="dialog" aria-controls="optionsPanel">⚙</button>
     <h1>五目並べ</h1>
     <div id="status" role="status" aria-live="polite">黒の番です</div>
     <div class="controls">
@@ -31,7 +32,63 @@
       <aside id="vrmViewer" class="vrm-viewer" aria-label="対戦キャラクター表示"></aside>
     </div>
     <button id="reset" type="button">リセット</button>
+    
   </main>
+  <!-- popup containers are outside .app to avoid containing block issues -->
+  <div id="optionsBackdrop" class="options-backdrop" hidden></div>
+  <section id="optionsPanel" class="options-panel" role="dialog" aria-modal="true" aria-labelledby="optionsTitle" hidden>
+      <header class="options-header">
+        <h2 id="optionsTitle">オプション</h2>
+        <button id="optionsClose" class="icon-close" type="button" aria-label="閉じる">×</button>
+      </header>
+      <div class="options-content">
+        <fieldset class="opt-group">
+          <legend>相槌（AIリアクション）</legend>
+          <label class="opt-row"><input type="checkbox" id="reactEnabled"> 有効にする</label>
+          <label class="opt-row">確率: <input type="range" id="reactProb" min="0" max="100" step="5"><output id="reactProbOut"></output></label>
+          <label class="opt-row">クールダウン(ms): <input type="number" id="reactCooldown" min="0" step="100"></label>
+          <label class="opt-row">手数間隔: <input type="number" id="reactTurns" min="0" step="1"></label>
+          <label class="opt-row -stack">
+            フレーズ（改行区切り）:
+            <textarea id="reactPhrases" rows="4" placeholder="なるほど…\nいい手だね！"></textarea>
+          </label>
+        </fieldset>
+
+        <fieldset class="opt-group">
+          <legend>AI手番のひとこと</legend>
+          <label class="opt-row"><input type="checkbox" id="aiSayEnabled"> 有効にする</label>
+          <label class="opt-row">確率: <input type="range" id="aiSayProb" min="0" max="100" step="5"><output id="aiSayProbOut"></output></label>
+          <label class="opt-row">クールダウン(ms): <input type="number" id="aiSayCooldown" min="0" step="100"></label>
+          <label class="opt-row">手数間隔: <input type="number" id="aiSayTurns" min="0" step="1"></label>
+          <label class="opt-row -stack">
+            フレーズ（改行区切り）:
+            <textarea id="aiSayPhrases" rows="3" placeholder="ここかな！\nよし！\nこれでどう？"></textarea>
+          </label>
+        </fieldset>
+
+        <fieldset class="opt-group">
+          <legend>吹き出し（デフォルト設定）</legend>
+          <label class="opt-row">位置:
+            <select id="chatPreset">
+              <option value="head-left">頭・左</option>
+              <option value="head-right">頭・右</option>
+              <option value="bottom-left">下・左</option>
+              <option value="bottom-right">下・右</option>
+            </select>
+          </label>
+          <label class="opt-row">サイズ:
+            <select id="chatSize">
+              <option value="small">小</option>
+              <option value="normal">標準</option>
+              <option value="large">大</option>
+            </select>
+          </label>
+          <label class="opt-row"><input type="checkbox" id="chatEnableLog"> ログを表示</label>
+          <label class="opt-row">ログ最大件数: <input type="number" id="chatMaxLog" min="1" max="20" step="1"></label>
+        </fieldset>
+      </div>
+  </section>
+  
   <script type="module" src="src/ui/script.js"></script>
   <script type="module" src="src/vrm/vrm.js"></script>
 </body>

@@ -60,6 +60,21 @@ function setupVRMViewer(root, vrmPath) {
   renderer.setClearColor(0x000000, 0);
   root.appendChild(renderer.domElement);
 
+  // ----- チャット（吹き出し）レイヤー -----
+  const chatLayer = document.createElement('div');
+  chatLayer.className = 'vrm-chat-layer';
+  const bubble = document.createElement('div');
+  bubble.className = 'vrm-bubble';
+  bubble.setAttribute('role', 'status');
+  bubble.setAttribute('aria-live', 'polite');
+  chatLayer.appendChild(bubble);
+  root.appendChild(chatLayer);
+
+  // ログ（下部に履歴を重ねて表示）
+  const chatLog = document.createElement('div');
+  chatLog.className = 'vrm-chat-log';
+  root.appendChild(chatLog);
+
   // ----- カメラ（見ている位置） -----
   // position の 3 つの値を調整すると、距離・高さ・横位置が変わります。
   const camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 50);
@@ -464,6 +479,129 @@ function setupVRMViewer(root, vrmPath) {
   // グローバルで簡単に呼べるように window に公開
   // 存在チェック付きで上書き安全に
   window.vrmTalk = Object.assign(window.vrmTalk || {}, { start: startTalking, close: closeMouth });
+
+  // ----- 外部API: チャット（吹き出し表示）-----
+  // 設定とキュー
+  const chatConfig = {
+    preset: 'head-left',     // 'head-left' | 'head-right' | 'bottom-left' | 'bottom-right'
+    size: 'normal',          // 'small' | 'normal' | 'large'
+    enableLog: true,
+    maxLogItems: 6,
+  };
+  let chatQueue = [];
+  let chatBusy = false;
+
+  function config(next = {}) {
+    const allow = ['preset', 'size', 'enableLog', 'maxLogItems'];
+    for (const k of allow) if (k in next) chatConfig[k] = next[k];
+  }
+
+  function say(text, opts = {}) {
+    const options = {
+      duration: undefined,    // ms（未指定時は自動計算）
+      typeSpeed: 28,          // 打ち出し 1 文字あたりの ms（自動計算に使用）
+      hold: 650,              // 文章表示後に残す時間 ms
+      talk: true,             // 口パク連動
+      clearQueue: false,      // true でキューをクリアして即時表示
+      preset: chatConfig.preset,
+      size: chatConfig.size,
+      log: true,              // 履歴への記録可否
+      ...opts,
+    };
+    if (options.clearQueue) chatQueue.length = 0;
+    chatQueue.push({ text: String(text ?? ''), options });
+    if (!chatBusy) consumeQueue();
+  }
+
+  async function consumeQueue() {
+    if (chatBusy) return;
+    chatBusy = true;
+    while (chatQueue.length) {
+      const { text, options } = chatQueue.shift();
+      await showOnce(text, options);
+    }
+    chatBusy = false;
+  }
+
+  function setBubbleVisible(v) {
+    if (v) bubble.classList.add('show'); else bubble.classList.remove('show');
+  }
+
+  function estimateDuration(text, typeSpeed, hold) {
+    const base = 350;
+    const perChar = Math.max(10, typeSpeed);
+    const len = Math.min(160, (text || '').length);
+    return base + len * perChar + Math.max(0, hold);
+  }
+
+  function setBubbleTextGradually(text, typeSpeed) {
+    return new Promise((resolve) => {
+      bubble.textContent = '';
+      if (!text) { resolve(); return; }
+      const chars = Array.from(text);
+      let i = 0;
+      const tick = () => {
+        bubble.textContent += chars[i];
+        i += 1;
+        if (i < chars.length) {
+          setTimeout(tick, typeSpeed);
+        } else {
+          resolve();
+        }
+      };
+      setTimeout(tick, typeSpeed);
+    });
+  }
+
+  function applyBubbleClasses(preset, size) {
+    const posClasses = ['pos-head-left','pos-head-right','pos-bottom-left','pos-bottom-right'];
+    const sizeClasses = ['size-small','size-normal','size-large'];
+    bubble.classList.remove(...posClasses, ...sizeClasses);
+    bubble.classList.add(`pos-${preset || chatConfig.preset}`);
+    bubble.classList.add(`size-${size || chatConfig.size}`);
+  }
+
+  function addLogLine(text) {
+    if (!chatConfig.enableLog) return;
+    const el = document.createElement('div');
+    el.className = 'vrm-log-item';
+    el.textContent = text;
+    chatLog.appendChild(el);
+    // 上限を超えたら古い順に削除
+    while (chatLog.children.length > (chatConfig.maxLogItems | 0 || 1)) {
+      chatLog.removeChild(chatLog.firstChild);
+    }
+  }
+
+  async function showOnce(text, options) {
+    const { duration, typeSpeed, hold, talk, preset, size, log } = options;
+    const total = duration ?? estimateDuration(text, typeSpeed, hold);
+    // 口パク（全文の想定時間にあわせて開始）
+    try { if (talk) startTalking(total); } catch (_) {}
+    // 位置/サイズ適用
+    applyBubbleClasses(preset, size);
+    setBubbleVisible(true);
+    await setBubbleTextGradually(text, typeSpeed);
+    await new Promise((r) => setTimeout(r, Math.max(0, total - (String(text).length * typeSpeed))));
+    // フェードアウト
+    setBubbleVisible(false);
+    await new Promise((r) => setTimeout(r, 170));
+    bubble.textContent = '';
+    if (log) addLogLine(text);
+  }
+
+  function clear() {
+    chatQueue.length = 0;
+    bubble.textContent = '';
+    setBubbleVisible(false);
+  }
+
+  window.vrmChat = Object.assign(window.vrmChat || {}, { say, clear, busy: () => chatBusy, config, get: () => ({ ...chatConfig }) });
+  // UI 側が先に設定していた場合の追従
+  if (window.__pendingVrmChatConfig) {
+    try { config(window.__pendingVrmChatConfig); } catch (_) {}
+    try { delete window.__pendingVrmChatConfig; } catch (_) {}
+  }
 
   // ----- 外部API: 勝利時スマイル -----
   // 例: window.vrmFace.smile(900, 0.9)
