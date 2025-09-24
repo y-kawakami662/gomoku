@@ -86,6 +86,39 @@
           <label class="opt-row"><input type="checkbox" id="chatEnableLog"> ログを表示</label>
           <label class="opt-row">ログ最大件数: <input type="number" id="chatMaxLog" min="1" max="20" step="1"></label>
         </fieldset>
+
+        <fieldset class="opt-group">
+          <legend>音声合成（TTS）</legend>
+          <label class="opt-row"><input type="checkbox" id="ttsEnabled"> 吹き出しを読み上げる</label>
+          <label class="opt-row">エンジン:
+            <select id="ttsEngine">
+              <option value="webspeech">ブラウザ（Web Speech）</option>
+              <option value="voicevox">VOICEVOX（ローカル）</option>
+            </select>
+          </label>
+          <div class="opt-subgroup" id="ttsWebspeechGroup">
+            <label class="opt-row -stack">音声:
+              <select id="ttsVoice"></select>
+            </label>
+            <label class="opt-row">話速: <input type="range" id="ttsRate" min="0.5" max="2" step="0.1"><output id="ttsRateOut"></output></label>
+            <label class="opt-row">ピッチ: <input type="range" id="ttsPitch" min="0" max="2" step="0.1"><output id="ttsPitchOut"></output></label>
+            <label class="opt-row">音量: <input type="range" id="ttsVolume" min="0" max="1" step="0.05"><output id="ttsVolumeOut"></output></label>
+            <p class="opt-note">ブラウザが提供する音声を使用します。日本語音声がない環境では別言語が選択されます。</p>
+          </div>
+          <div class="opt-subgroup" id="ttsVoicevoxGroup">
+            <label class="opt-row -stack">話者:
+              <select id="vvxSpeaker"></select>
+            </label>
+            <label class="opt-row -stack">API ベースURL:
+              <input id="vvxBaseUrl" type="url" placeholder="http://127.0.0.1:3000/api/voicevox">
+            </label>
+            <label class="opt-row">速度: <input type="range" id="vvxSpeed" min="0.5" max="2" step="0.05"><output id="vvxSpeedOut"></output></label>
+            <label class="opt-row">ピッチ: <input type="range" id="vvxPitch" min="-0.15" max="0.15" step="0.01"><output id="vvxPitchOut"></output></label>
+            <label class="opt-row">抑揚: <input type="range" id="vvxIntonation" min="0" max="2" step="0.05"><output id="vvxIntonationOut"></output></label>
+            <label class="opt-row">音量: <input type="range" id="vvxVolume" min="0" max="2" step="0.05"><output id="vvxVolumeOut"></output></label>
+            <p class="opt-note">VOICEVOX エンジン（ポート 50021）が起動している必要があります。</p>
+          </div>
+        </fieldset>
       </div>
   </section>
   

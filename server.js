@@ -28,9 +28,85 @@ const mime = new Map([
   ['.vrm', 'application/octet-stream']
 ]);
 
+async function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => {
+      try { resolve(Buffer.concat(chunks)); } catch (e) { reject(e); }
+    });
+    req.on('error', reject);
+  });
+}
+
+// VOICEVOX エンジン用の簡易プロキシ
+async function proxyVoiceVox(req, res, urlPath) {
+  const base = 'http://127.0.0.1:50021';
+  // CORS (GitHub Pages など別オリジンからのアクセス許可)
+  const setCORS = (headers = {}) => ({
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    ...headers,
+  });
+  if (req.method === 'OPTIONS' && urlPath.startsWith('/api/voicevox/')) {
+    res.writeHead(204, setCORS());
+    res.end();
+    return true;
+  }
+  try {
+    if (urlPath === '/api/voicevox/speakers' && req.method === 'GET') {
+      const r = await fetch(base + '/speakers');
+      if (!r.ok) throw new Error(`VOICEVOX /speakers failed: ${r.status}`);
+      const json = await r.json();
+      res.writeHead(200, setCORS({ 'Content-Type': 'application/json; charset=UTF-8', 'Cache-Control': 'no-cache' }));
+      res.end(JSON.stringify(json));
+      return true;
+    }
+    if (urlPath === '/api/voicevox/tts' && req.method === 'POST') {
+      const buf = await readBody(req);
+      const payload = JSON.parse(buf.toString('utf8') || '{}');
+      const text = String(payload.text || '').slice(0, 1000);
+      const speaker = Number(payload.speaker ?? 1) | 0;
+      if (!text) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=UTF-8' });
+        res.end(JSON.stringify({ error: 'text required' }));
+        return true;
+      }
+      const aqUrl = new URL(base + '/audio_query');
+      aqUrl.searchParams.set('text', text);
+      aqUrl.searchParams.set('speaker', String(speaker));
+      const aqRes = await fetch(aqUrl, { method: 'POST' });
+      if (!aqRes.ok) throw new Error(`VOICEVOX /audio_query failed: ${aqRes.status}`);
+      const aq = await aqRes.json();
+      const opts = ['speedScale','pitchScale','intonationScale','volumeScale'];
+      for (const k of opts) if (payload[k] != null) aq[k] = payload[k];
+      const synUrl = new URL(base + '/synthesis');
+      synUrl.searchParams.set('speaker', String(speaker));
+      const synRes = await fetch(synUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(aq) });
+      if (!synRes.ok) throw new Error(`VOICEVOX /synthesis failed: ${synRes.status}`);
+      const wav = Buffer.from(await synRes.arrayBuffer());
+      res.writeHead(200, setCORS({ 'Content-Type': 'audio/wav', 'Cache-Control': 'no-cache' }));
+      res.end(wav);
+      return true;
+    }
+  } catch (err) {
+    res.writeHead(503, setCORS({ 'Content-Type': 'application/json; charset=UTF-8' }));
+    res.end(JSON.stringify({ error: 'VOICEVOX unavailable', detail: String(err && err.message || err) }));
+    return true;
+  }
+  return false;
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const urlPath = decodeURIComponent(new URL(req.url || '/', `http://${req.headers.host}`).pathname);
+
+    // VOICEVOX proxy endpoints
+    if (urlPath.startsWith('/api/voicevox/')) {
+      const handled = await proxyVoiceVox(req, res, urlPath);
+      if (handled) return;
+    }
     let filePath = path.normalize(path.join(root, urlPath));
 
     // ディレクトリトラバーサル防止

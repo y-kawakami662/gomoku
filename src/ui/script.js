@@ -155,7 +155,7 @@ function resetGame() {
 }
 
 // ---- Options panel wiring ----
-function openOptions() {
+async function openOptions() {
   if (!optionsPanel) return;
   const gear = optionsBtn;
   if (gear) optionsPanel.setAttribute("aria-labelledby", "optionsTitle");
@@ -181,6 +181,41 @@ function openOptions() {
     setSelect("chatSize", cc.size || "normal");
     setChecked("chatEnableLog", !!cc.enableLog);
     setNumber("chatMaxLog", cc.maxLogItems ?? 6);
+  } catch (_) {}
+  // TTS 設定
+  try {
+    // 音声リストの反映（Web Speech）
+    populateTTSVoices();
+    // 設定値反映
+    const vc = window.vrmVoice?.get ? window.vrmVoice.get() : (window.__pendingVrmVoiceConfig || { engine: 'webspeech', enabled: false, rate: 1, pitch: 1, volume: 1, voiceURI: '', lang: 'ja-JP', speaker: 1, speedScale: 1, pitchScale: 0, intonationScale: 1, volumeScale: 1, baseUrl: '/api/voicevox' });
+    setChecked("ttsEnabled", !!vc.enabled);
+    const engSel = byId("ttsEngine"); if (engSel) engSel.value = String(vc.engine || 'webspeech');
+    setRange("ttsRate", Math.round((vc.rate ?? 1) * 10) / 10);
+    const rateOut = byId("ttsRateOut"); if (rateOut) rateOut.textContent = ` ${vc.rate?.toFixed?.(1) ?? '1.0'}`;
+    setRange("ttsPitch", Math.round((vc.pitch ?? 1) * 10) / 10);
+    const pitchOut = byId("ttsPitchOut"); if (pitchOut) pitchOut.textContent = ` ${vc.pitch?.toFixed?.(1) ?? '1.0'}`;
+    setRange("ttsVolume", Math.round((vc.volume ?? 1) * 20) / 20);
+    const volOut = byId("ttsVolumeOut"); if (volOut) volOut.textContent = ` ${vc.volume?.toFixed?.(2) ?? '1.00'}`;
+    // voice セレクト（voiceURI か name で一致候補を選択）
+    const sel = byId("ttsVoice");
+    if (sel && vc.voiceURI) {
+      const opt = Array.from(sel.options).find(o => o.value === vc.voiceURI);
+      if (opt) sel.value = vc.voiceURI;
+    }
+    // VOICEVOX スピーカーを取得
+    await populateVoicevoxSpeakers();
+    const spSel = byId("vvxSpeaker");
+    if (spSel && vc.speaker != null) spSel.value = String(vc.speaker);
+    const baseEl = byId("vvxBaseUrl"); if (baseEl) baseEl.value = String(vc.baseUrl || '/api/voicevox');
+    setRange("vvxSpeed", Math.round((vc.speedScale ?? 1) * 20) / 20);
+    const vvxSpeedOut = byId("vvxSpeedOut"); if (vvxSpeedOut) vvxSpeedOut.textContent = ` ${Number(vc.speedScale ?? 1).toFixed(2)}`;
+    setRange("vvxPitch", Math.round(((vc.pitchScale ?? 0) + 1) * 100) / 100 - 1);
+    const vvxPitchOut = byId("vvxPitchOut"); if (vvxPitchOut) vvxPitchOut.textContent = ` ${Number(vc.pitchScale ?? 0).toFixed(2)}`;
+    setRange("vvxIntonation", Math.round((vc.intonationScale ?? 1) * 20) / 20);
+    const vvxIntOut = byId("vvxIntonationOut"); if (vvxIntOut) vvxIntOut.textContent = ` ${Number(vc.intonationScale ?? 1).toFixed(2)}`;
+    setRange("vvxVolume", Math.round((vc.volumeScale ?? 1) * 20) / 20);
+    const vvxVolOut = byId("vvxVolumeOut"); if (vvxVolOut) vvxVolOut.textContent = ` ${Number(vc.volumeScale ?? 1).toFixed(2)}`;
+    updateTTSGroupsVisibility();
   } catch (_) {}
   optionsPanel.removeAttribute("hidden");
   if (optionsBackdrop) optionsBackdrop.removeAttribute("hidden");
@@ -238,6 +273,19 @@ function bindOptionEventsOnce() {
   byId("chatSize")?.addEventListener("change", applyChat);
   byId("chatEnableLog")?.addEventListener("change", applyChat);
   byId("chatMaxLog")?.addEventListener("change", applyChat);
+  // TTS
+  byId("ttsEngine")?.addEventListener("change", () => { updateTTSGroupsVisibility(); applyTTSFromUI(); });
+  byId("ttsEnabled")?.addEventListener("change", () => applyTTSFromUI());
+  byId("ttsVoice")?.addEventListener("change", () => applyTTSFromUI());
+  byId("ttsRate")?.addEventListener("input", () => applyTTSFromUI());
+  byId("ttsPitch")?.addEventListener("input", () => applyTTSFromUI());
+  byId("ttsVolume")?.addEventListener("input", () => applyTTSFromUI());
+  byId("vvxSpeaker")?.addEventListener("change", () => applyTTSFromUI());
+  byId("vvxBaseUrl")?.addEventListener("change", () => applyTTSFromUI());
+  byId("vvxSpeed")?.addEventListener("input", () => applyTTSFromUI());
+  byId("vvxPitch")?.addEventListener("input", () => applyTTSFromUI());
+  byId("vvxIntonation")?.addEventListener("input", () => applyTTSFromUI());
+  byId("vvxVolume")?.addEventListener("input", () => applyTTSFromUI());
 }
 
 function applyReactionFromUI() {
@@ -286,6 +334,137 @@ function applyChatFromUI() {
     // VRM未初期化時は一時保存して、VRM側で受け取って適用
     window.__pendingVrmChatConfig = Object.assign(window.__pendingVrmChatConfig || {}, next);
   }
+}
+
+function populateTTSVoices() {
+  const sel = byId("ttsVoice");
+  if (!sel) return;
+  const fill = (voices) => {
+    if (!Array.isArray(voices)) return;
+    sel.innerHTML = "";
+    // 日本語優先で並べ替え
+    const ja = voices.filter(v => /ja(-JP)?/i.test(v.lang));
+    const others = voices.filter(v => !/ja(-JP)?/i.test(v.lang));
+    const ordered = [...ja, ...others];
+    const add = (v) => {
+      const opt = document.createElement('option');
+      opt.value = v.voiceURI || v.name || '';
+      opt.textContent = `${v.name || 'voice'} (${v.lang || '?'})${v.default ? ' [default]' : ''}`;
+      sel.appendChild(opt);
+    };
+    // 先頭に自動選択（日本語優先）
+    const auto = document.createElement('option');
+    auto.value = '';
+    auto.textContent = '自動選択（日本語優先）';
+    sel.appendChild(auto);
+    ordered.forEach(add);
+  };
+  try {
+    if (window.vrmVoice?.listVoices) fill(window.vrmVoice.listVoices());
+    else if (window.speechSynthesis?.getVoices) fill(window.speechSynthesis.getVoices());
+  } catch (_) {}
+  try {
+    if (window.speechSynthesis) {
+      // リスト未取得の場合にイベントで更新
+      window.speechSynthesis.onvoiceschanged = () => {
+        try { populateTTSVoices(); } catch (_) {}
+      };
+    }
+  } catch (_) {}
+}
+
+function applyTTSFromUI() {
+  const enabled = !!getChecked("ttsEnabled");
+  const engine = String(getSelect("ttsEngine") || 'webspeech');
+  const voiceURI = String(getSelect("ttsVoice") || "");
+  const rate = Math.max(0.5, Math.min(2, Number(getRange("ttsRate") ?? 1)));
+  const pitch = Math.max(0, Math.min(2, Number(getRange("ttsPitch") ?? 1)));
+  const volume = Math.max(0, Math.min(1, Number(getRange("ttsVolume") ?? 1)));
+  const rateOut = byId("ttsRateOut"); if (rateOut) rateOut.textContent = ` ${rate.toFixed(1)}`;
+  const pitchOut = byId("ttsPitchOut"); if (pitchOut) pitchOut.textContent = ` ${pitch.toFixed(1)}`;
+  const volOut = byId("ttsVolumeOut"); if (volOut) volOut.textContent = ` ${volume.toFixed(2)}`;
+  // VOICEVOX params
+  const speaker = Number(getSelect("vvxSpeaker") ?? 1) | 0;
+  const baseUrl = String(byId('vvxBaseUrl')?.value || '/api/voicevox');
+  const speedScale = Math.max(0.5, Math.min(2, Number(getRange("vvxSpeed") ?? 1)));
+  const pitchScale = Math.max(-0.15, Math.min(0.15, Number(getRange("vvxPitch") ?? 0)));
+  const intonationScale = Math.max(0, Math.min(2, Number(getRange("vvxIntonation") ?? 1)));
+  const volumeScale = Math.max(0, Math.min(2, Number(getRange("vvxVolume") ?? 1)));
+  const sOut = byId("vvxSpeedOut"); if (sOut) sOut.textContent = ` ${speedScale.toFixed(2)}`;
+  const pOut = byId("vvxPitchOut"); if (pOut) pOut.textContent = ` ${pitchScale.toFixed(2)}`;
+  const iOut = byId("vvxIntonationOut"); if (iOut) iOut.textContent = ` ${intonationScale.toFixed(2)}`;
+  const vOut2 = byId("vvxVolumeOut"); if (vOut2) vOut2.textContent = ` ${volumeScale.toFixed(2)}`;
+  const next = { engine, enabled, voiceURI, rate, pitch, volume, speaker, speedScale, pitchScale, intonationScale, volumeScale, baseUrl };
+  if (window.vrmVoice?.config) {
+    try { window.vrmVoice.config(next); } catch (_) {}
+  } else {
+    window.__pendingVrmVoiceConfig = Object.assign(window.__pendingVrmVoiceConfig || {}, next);
+  }
+}
+
+async function populateVoicevoxSpeakers() {
+  const sel = byId('vvxSpeaker');
+  if (!sel) return;
+  if (window.__voicevox_speakers) {
+    fillSpeakers(window.__voicevox_speakers);
+    return;
+  }
+  try {
+    const base = getVvxBaseUrl();
+    const r = await fetch(`${base}/speakers`);
+    if (!r.ok) throw new Error(String(r.status));
+    const json = await r.json();
+    window.__voicevox_speakers = json;
+    fillSpeakers(json);
+  } catch (_) {
+    sel.innerHTML = '';
+    const op = document.createElement('option');
+    op.value = '1';
+    op.textContent = '（VOICEVOX未検出）';
+    sel.appendChild(op);
+  }
+
+  function fillSpeakers(list) {
+    sel.innerHTML = '';
+    const options = [];
+    try {
+      for (const sp of list || []) {
+        for (const st of sp.styles || []) {
+          options.push({ id: st.id, label: `${sp.name} - ${st.name}` });
+        }
+      }
+    } catch {}
+    if (options.length === 0) {
+      const op = document.createElement('option');
+      op.value = '1';
+      op.textContent = '（話者なし）';
+      sel.appendChild(op);
+      return;
+    }
+    for (const o of options) {
+      const op = document.createElement('option');
+      op.value = String(o.id);
+      op.textContent = o.label;
+      sel.appendChild(op);
+    }
+  }
+}
+
+function getVvxBaseUrl() {
+  try {
+    const cfg = window.vrmVoice?.get ? window.vrmVoice.get() : window.__pendingVrmVoiceConfig;
+    return cfg?.baseUrl || '/api/voicevox';
+  } catch (_) {
+    return '/api/voicevox';
+  }
+}
+
+function updateTTSGroupsVisibility() {
+  const eng = String(getSelect('ttsEngine') || 'webspeech');
+  const gWeb = byId('ttsWebspeechGroup');
+  const gVvx = byId('ttsVoicevoxGroup');
+  if (gWeb) gWeb.style.display = eng === 'webspeech' ? '' : 'none';
+  if (gVvx) gVvx.style.display = eng === 'voicevox' ? '' : 'none';
 }
 
 // small DOM helpers

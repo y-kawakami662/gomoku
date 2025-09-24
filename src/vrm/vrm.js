@@ -480,6 +480,119 @@ function setupVRMViewer(root, vrmPath) {
   // 存在チェック付きで上書き安全に
   window.vrmTalk = Object.assign(window.vrmTalk || {}, { start: startTalking, close: closeMouth });
 
+  // ----- 音声合成（TTS） -----
+  const voiceConfig = {
+    engine: 'webspeech', // 'webspeech' | 'voicevox'
+    enabled: false,
+    // Web Speech
+    voiceURI: '',
+    lang: 'ja-JP',
+    rate: 1.0,
+    pitch: 1.0,
+    volume: 1.0,
+    // VOICEVOX
+    baseUrl: '/api/voicevox',
+    speaker: 1,
+    speedScale: 1.0,
+    pitchScale: 0.0,
+    intonationScale: 1.0,
+    volumeScale: 1.0,
+  };
+  function listVoices() {
+    try { return (window.speechSynthesis?.getVoices?.() || []).slice(); } catch { return []; }
+  }
+  function resolveVoice(uri, langHint) {
+    const voices = listVoices();
+    if (!voices.length) return null;
+    const byUri = uri ? voices.find(v => v.voiceURI === uri) : null;
+    if (byUri) return byUri;
+    // 日本語優先
+    const ja = voices.find(v => /ja(-JP)?/i.test(v.lang));
+    if (ja) return ja;
+    // 言語ヒント
+    if (langHint) {
+      const lh = voices.find(v => (v.lang || '').toLowerCase().startsWith(String(langHint).toLowerCase()));
+      if (lh) return lh;
+    }
+    // ブラウザデフォルト
+    const def = voices.find(v => v.default);
+    return def || voices[0] || null;
+  }
+  function configVoice(next = {}) {
+    const allow = ['engine','enabled','voiceURI','lang','rate','pitch','volume','baseUrl','speaker','speedScale','pitchScale','intonationScale','volumeScale'];
+    for (const k of allow) if (k in next) voiceConfig[k] = next[k];
+    if (!voiceConfig.enabled) {
+      try { window.speechSynthesis?.cancel?.(); } catch (_) {}
+    }
+  }
+  function getVoiceConfig() { return { ...voiceConfig }; }
+  let lastAudio = null;
+  let lastUrl = null;
+  async function speak(text) {
+    if (!voiceConfig.enabled) return;
+    const s = String(text ?? '');
+    if (!s) return;
+    if (voiceConfig.engine === 'voicevox') {
+      try {
+        // 停止・クリーンアップ
+        if (lastAudio) { try { lastAudio.pause(); } catch (_) {} }
+        if (lastUrl) { try { URL.revokeObjectURL(lastUrl); } catch (_) {} lastUrl = null; }
+        const body = {
+          text: s,
+          speaker: Number(voiceConfig.speaker) | 0,
+          speedScale: Number(voiceConfig.speedScale) || 1,
+          pitchScale: Number(voiceConfig.pitchScale) || 0,
+          intonationScale: Number(voiceConfig.intonationScale) || 1,
+          volumeScale: Number(voiceConfig.volumeScale) || 1,
+        };
+        const base = voiceConfig.baseUrl || '/api/voicevox';
+        const r = await fetch(`${base}/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!r.ok) throw new Error('voicevox synthesis failed');
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        lastAudio = audio;
+        lastUrl = url;
+        await audio.play().catch(()=>{});
+        // 再生終了後にURL解放
+        audio.addEventListener('ended', () => { try { URL.revokeObjectURL(url); } catch (_) {} });
+        return;
+      } catch (_) {
+        // フォールバック: Web Speech
+      }
+    }
+    // Web Speech fallback or selected engine
+    if (!('speechSynthesis' in window)) return;
+    try { window.speechSynthesis.cancel(); } catch (_) {}
+    const u = new SpeechSynthesisUtterance(s);
+    u.lang = voiceConfig.lang || 'ja-JP';
+    u.rate = Math.max(0.5, Math.min(2, Number(voiceConfig.rate) || 1));
+    u.pitch = Math.max(0, Math.min(2, Number(voiceConfig.pitch) || 1));
+    u.volume = Math.max(0, Math.min(1, Number(voiceConfig.volume) || 1));
+    try {
+      const v = resolveVoice(voiceConfig.voiceURI, voiceConfig.lang);
+      if (v) u.voice = v;
+    } catch (_) {}
+    try { window.speechSynthesis.speak(u); } catch (_) {}
+  }
+  function cancelSpeak() {
+    try { window.speechSynthesis?.cancel?.(); } catch (_) {}
+    if (lastAudio) { try { lastAudio.pause(); } catch (_) {} }
+    if (lastUrl) { try { URL.revokeObjectURL(lastUrl); } catch (_) {} lastUrl = null; }
+  }
+  window.vrmVoice = Object.assign(window.vrmVoice || {}, {
+    speak,
+    cancel: cancelSpeak,
+    config: configVoice,
+    get: getVoiceConfig,
+    listVoices,
+  });
+  // UI 側が先に設定していた場合の追従
+  if (window.__pendingVrmVoiceConfig) {
+    try { configVoice(window.__pendingVrmVoiceConfig); } catch (_) {}
+    try { delete window.__pendingVrmVoiceConfig; } catch (_) {}
+  }
+
   // ----- 外部API: チャット（吹き出し表示）-----
   // 設定とキュー
   const chatConfig = {
@@ -578,6 +691,8 @@ function setupVRMViewer(root, vrmPath) {
     const total = duration ?? estimateDuration(text, typeSpeed, hold);
     // 口パク（全文の想定時間にあわせて開始）
     try { if (talk) startTalking(total); } catch (_) {}
+    // 音声合成
+    try { window.vrmVoice?.speak?.(text); } catch (_) {}
     // 位置/サイズ適用
     applyBubbleClasses(preset, size);
     setBubbleVisible(true);
